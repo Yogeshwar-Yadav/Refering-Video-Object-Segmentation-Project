@@ -134,7 +134,7 @@ We only use Video-Swin-T as backbone to train and eval the dataset.
   The key parameters are as follows and change the ./configs/a2d_sentences.yaml:
   | lr | backbone_lr | bs | GPU_num | Epoch | lr_drop |
   |:----:|:-------------:|:----:|:---------:|:-------:|:-------:|
-  |5e-4| 5e-5        | 2  |  2      |  40   | 15(0.2) |
+  |5e-5| 5e-6        | 2  |  2      |  40   | 15(0.2) |
 
 - Ref-Youtube-VOS 
   Run the "./scripts/train_ytb.sh.
