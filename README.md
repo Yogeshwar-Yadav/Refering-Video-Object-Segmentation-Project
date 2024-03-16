@@ -7,7 +7,7 @@
 <a href='https://arxiv.org/abs/2305.17011'><img src='https://img.shields.io/badge/ArXiv-2305.17011-red'></a>
 
 ## 📢 Updates
-- **Jan. 1, 2024**: We Release the Code for the ICCV 2023 Workshop: The 5th Large-scale Video Object Segmentation Challenge.
+- **Jan. 1, 2024**: We Release the [Code](https://github.com/RobertLuo1/iccv2023_RVOS_Challenge) for the ICCV 2023 Workshop: The 5th Large-scale Video Object Segmentation Challenge.
 - **Oct. 29, 2023**: Code is released now.
 - **Sep. 22, 2023**: Our paper is accepted by NeurIPS 2023!
 
@@ -222,7 +222,7 @@ Code in this repository is built upon several public repositories. Thanks for th
 ## Citations
 If you find this work useful for your research, please cite:
 ```
-@article{SOC,
+@inproceedings{SOC,
   author       = {Zhuoyan Luo and
                   Yicheng Xiao and
                   Yong Liu and
@@ -233,8 +233,7 @@ If you find this work useful for your research, please cite:
                   Yujiu Yang},
   title        = {{SOC:} Semantic-Assisted Object Cluster for Referring Video Object
                   Segmentation},
-  journal      = {CoRR},
-  volume       = {abs/2305.17011},
+  booktitle    = {NeurIPS},
   year         = {2023},
 }
 ```
