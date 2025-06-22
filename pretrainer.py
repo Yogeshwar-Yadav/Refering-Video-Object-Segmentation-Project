@@ -52,6 +52,7 @@ class Trainer:
         model.to(self.device)
         model_without_ddp = model
         if config.distributed:
+            print(f"DDP : {device_id}")
             model = DDP(model, device_ids=[device_id])
             model_without_ddp = model.module
         self.model = model
@@ -157,7 +158,7 @@ class Trainer:
             loss_sums_dict = {k: 0 for k in self.criterion.weight_dict.keys()}
             for batch_dict in tqdm(self.data_loader_train, disable=not utils.is_main_process()):
                 samples = batch_dict['samples'].to(self.device)
-                targets = to_device(batch_dict['targets'], self.device)
+                targets = to_device(batch_dict['targets'],self.device)
                 text_queries = batch_dict['text_queries']
                 # keep only the valid targets (targets of frames which are annotated). for example, in a2d-sentences
                 # only the center frame in each window is annotated.

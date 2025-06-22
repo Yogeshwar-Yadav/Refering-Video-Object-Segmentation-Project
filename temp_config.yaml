@@ -1,0 +1,29 @@
+DATA:
+  TEXT_PATH:
+    value: /home/nazir/NeurIPS2023_SOC/uploads/query.txt
+  VIDEO_PATH:
+    value: /home/nazir/NeurIPS2023_SOC/uploads/testvideo_output.mp4
+DeformTransformer:
+  d_model: 256
+  dec_layers: 6
+  dec_n_points: 4
+  dim_feedforward: 1024
+  dropout: 0.1
+  enc_layers: 6
+  enc_n_points: 4
+  nheads: 8
+  num_feature_levels: 4
+  num_queries: 300
+  two_stage: true
+OUTPUT:
+  DIR:
+    value: /home/nazir/NeurIPS2023_SOC/result
+backbone: video-swin-b
+backbone_pretrained_path: /home/nazir/NeurIPS2023_SOC/pretrained/video_swin_base.pth
+freeze_text_encoder: true
+mask_kernels_dim: 256
+num_classes: 42
+rel_coord: true
+text_encoder_type: roberta-base
+use_checkpoint: false
+with_box_refine: true

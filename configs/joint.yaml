@@ -27,8 +27,8 @@ seed:
 backbone_pretrained:
   desc: whether to load pretrained weights
   value: true
-# backbone_pretrained_path:
-#   value: "/mnt/data_16TB/lzy23/pretrained/pretrained_swin_transformer/swin_tiny_patch244_window877_kinetics400_1k.pth"
+backbone_pretrained_path:
+  value: "/home/nazir/NeurIPS2023_SOC/pretrained/video_swin_base.pth"
 train_backbone:
   value: true
 use_checkpoint:
@@ -74,7 +74,7 @@ freeze_text_encoder:
   #desc: Whether to freeze the weights of the text encoder during training
   #value: true
 text_encoder_type: 
-  value: '/mnt/data_16TB/lzy23/pretrained/pretrained_roberta'
+  value: '/home/nazir/NeurIPS2023_SOC/pretrained/pretrained_roberta'
   #desc: text encoder to use. options - roberta-base, roberta-large, distilroberta-base
   #value: 
 num_classes:
@@ -211,11 +211,11 @@ eval_batch_size:
 
 img_folder:
   desc: "the path of dataset"
-  value: "/mnt/data_16TB/lzy23/rvosdata/coco/train2014"
+  value: "/home/nazir/NeurIPS2023_SOC/rvosdata/refer_youtube_vos"
 
 ann_file:
   desc: "the path of annotations file"
-  value: '/mnt/data_16TB/lzy23/rvosdata/coco'
+  value: '/home/nazir/NeurIPS2023_SOC/rvosdata/refer_youtube_vos/meta_expressions'
 
 # version:
 #   desc: the version of the model
@@ -227,4 +227,4 @@ ann_file:
 
 checkpoint_path:
   desc: the saved checkpoint path
-  value: '/data/xyc/soc_output/runs/ref_youtube_vos/ref_55/checkpoints/31.pth.tar' 
+  value: '/home/nazir/NeurIPS2023_SOC/SOC/tiny_finetune/19.pth.tar' 

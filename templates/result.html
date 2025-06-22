@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segmented Output</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fb;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .result-container {
+            background: #fff;
+            padding: 40px 30px;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 720px;
+            width: 100%;
+        }
+
+        h1 {
+            margin-bottom: 25px;
+            font-size: 1.8em;
+            color: #333;
+        }
+
+        video {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn {
+            display: inline-block;
+            margin: 20px 10px 0;
+            padding: 12px 20px;
+            font-size: 1em;
+            font-weight: 500;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .note {
+            color: #777;
+            margin-top: 15px;
+            font-size: 0.95em;
+        }
+
+        @media (max-width: 600px) {
+            .result-container {
+                padding: 30px 20px;
+            }
+
+            .btn {
+                width: 100%;
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="result-container">
+    <h1>🎉 Your Segmented Video Is Ready!</h1>
+
+    {% if video_path %}
+        <video controls>
+            <source src="{{ url_for('stream_video', filename=video_path.split('/')[-2] + '/SOC/' + video_path.split('/')[-1]) }}" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+
+        <div>
+            <a href="{{ url_for('download_segmented_video', filename=video_path.split('result/', 1)[-1]) }}" download class="btn">⬇️ Download</a>
+            <a href="/" class="btn">🏠 Back to Home</a>
+        </div>
+
+    {% else %}
+        <p>No video found to display.</p>
+        <a href="/" class="btn">🏠 Back to Home</a>
+    {% endif %}
+
+    <p class="note">Having trouble? Ensure the video is processed correctly and try again.</p>
+</div>
+
+<script>
+    const video = document.querySelector('video');
+    if (video) {
+        video.onerror = function () {n
+            alert("⚠️ Failed to load the video. Please try again or check the server logs.");
+        };
+    }
+</script>
+
+</body>
+</html>

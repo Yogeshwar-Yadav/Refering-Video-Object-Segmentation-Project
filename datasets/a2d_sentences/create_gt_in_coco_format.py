@@ -15,8 +15,8 @@ from pycocotools.mask import encode, area
 from datasets.a2d_sentences import a2d_sentences_dataset
 
 subset_type = 'test'
-dataset_path = '/data/xyc/a2d_sentences'
-output_path = f'/data/xyc/a2d_sentences/a2d_sentences_{subset_type}_annotations_in_coco_format.json'
+dataset_path = '/home/nazir/NeurIPS2023_SOC/rvosdata/a2d_sentences'
+output_path = f'/home/nazir/NeurIPS2023_SOC/rvosdata/a2d_sentences_{subset_type}_annotations_in_coco_format.json'
 
 
 def get_text_annotations(root_path, subset):

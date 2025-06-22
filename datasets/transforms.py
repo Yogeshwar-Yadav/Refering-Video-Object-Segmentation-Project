@@ -4,14 +4,43 @@ Modified from DETR https://github.com/facebookresearch/detr
 import random
 import PIL
 import torch
+import torchvision
 import torchvision.transforms as T
 import torchvision.transforms.functional as F
-from misc import interpolate, box_xyxy_to_cxcywh
+# from misc import interpolate, box_xyxy_to_cxcywh
 import numpy as np
 from PIL import Image
 import cv2
 from numpy import random as rand
+import torchvision
+if float(torchvision.__version__.split(".")[1]) < 7.0:
+    from torchvision.ops import _new_empty_tensor
+    from torchvision.ops.misc import _output_size
 
+def box_xyxy_to_cxcywh(x):
+    x0, y0, x1, y1 = x.unbind(-1)
+    b = [(x0 + x1) / 2, (y0 + y1) / 2,
+         (x1 - x0), (y1 - y0)]
+    return torch.stack(b, dim=-1)
+
+def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corners=None):
+    # type: (Tensor, Optional[List[int]], Optional[float], str, Optional[bool]) -> Tensor
+    """
+    Equivalent to nn.functional.interpolate, but with support for empty batch sizes.
+    This will eventually be supported natively by PyTorch, and this
+    class can go away.
+    """
+    if float(torchvision.__version__.split(".")[1]) < 7.0:
+        if input.numel() > 0:
+            return torch.nn.functional.interpolate(
+                input, size, scale_factor, mode, align_corners
+            )
+
+        output_shape = _output_size(2, input, size, scale_factor)
+        output_shape = list(input.shape[:-2]) + list(output_shape)
+        return _new_empty_tensor(input, output_shape)
+    else:
+        return torchvision.ops.misc.interpolate(input, size, scale_factor, mode, align_corners)
 
 
 class PhotometricDistort(object):

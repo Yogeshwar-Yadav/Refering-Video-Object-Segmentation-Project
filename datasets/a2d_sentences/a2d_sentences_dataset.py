@@ -29,7 +29,7 @@ class A2DSentencesDataset(Dataset):
     For more information check out: https://kgavrilyuk.github.io/publication/actor_action/ or the original paper at:
     https://arxiv.org/abs/1803.07485
     """
-    def __init__(self, subset_type: str = 'train', dataset_path: str = '/mnt/data_16TB/lzy23/rvosdata/a2d_sentences', window_size=8,
+    def __init__(self, subset_type: str = 'train', dataset_path: str = '/home/nazir/NeurIPS2023_SOC/rvosdata/a2d_sentences', window_size=8,
                  dataset_coco_gt_format_path=None, distributed=False, **kwargs):
         super(A2DSentencesDataset, self).__init__()
         assert subset_type in ['train', 'test'], 'error, unsupported dataset subset type. supported: train, test'
@@ -52,7 +52,7 @@ class A2DSentencesDataset(Dataset):
 
     @staticmethod
     def get_text_annotations(root_path, subset, distributed):
-        saved_annotations_file_path = f'/mnt/data_16TB/lzy23/rvosdata/a2d_sentences/a2d_sentences_single_frame_{subset}_annotations.json'
+        saved_annotations_file_path = f'/home/nazir/NeurIPS2023_SOC/rvosdata/a2d_sentences/a2d_sentences_single_frame_{subset}_annotations.json'
         if path.exists(saved_annotations_file_path):
             with open(saved_annotations_file_path, 'r') as f:
                 text_annotations_by_frame = [tuple(a) for a in json.load(f)]
@@ -189,7 +189,7 @@ class A2DSentencesDataset(Dataset):
             instance_masks = instance_masks[np.newaxis, ...] #[1, H, W]
         instance_masks = torch.tensor(instance_masks).transpose(1, 2) #[H W]
         mask_rles = [encode(mask) for mask in instance_masks.numpy()]
-        mask_areas = area(mask_rles).astype(np.float)
+        mask_areas = area(mask_rles).astype(float)
         f.close()
 
         for mask in instance_masks:

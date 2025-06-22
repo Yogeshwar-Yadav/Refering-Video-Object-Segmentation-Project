@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Video-Text Model App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="#home" class="logo">Video Object Segmentation</a>
+            <ul class="nav-links">
+                <li><a href="#home">Home</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#inference">Inference</a></li>
+                <li><a href="#about">About</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Slider -->
+    <section class="slider" id="home">
+        <div class="slides">
+            <div class="slide active" style="background-image: url('{{ url_for('static', filename='images/images.jpg') }}');">
+                <div class="overlay"></div>
+                <h2>Welcome to Video object segmentation</h2>
+            </div>
+            <div class="slide" style="background-image: url('{{ url_for('static', filename='images/slide2.jpg') }}');">
+                <div class="overlay"></div>
+                <h2>Smart segmentation with Video + Text</h2>
+            </div>
+            <div class="slide" style="background-image: url('{{ url_for('static', filename='images/slide3.jpg') }}');">
+                <div class="overlay"></div>
+                <h2>Upload, ask, get segmented video!</h2>
+            </div>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <button class="slider-btn prev">&#10094;</button>
+        <button class="slider-btn next">&#10095;</button>
+    </section>
+
+    <!-- Feature Section -->
+<!-- Feature Section -->
+<section class="features" id="features">
+    <h2>Features</h2>
+    <div class="feature-grid">
+
+        <div class="feature-card">
+            <i class="fas fa-upload fa-3x feature-icon"></i>
+            <h3>Upload Any Video</h3>
+            <p>Supports various formats. Quickly upload videos from your device for analysis.</p>
+        </div>
+
+        <div class="feature-card">
+            <i class="fas fa-comment-dots fa-3x feature-icon"></i>
+            <h3>Natural Language Queries</h3>
+            <p>Ask questions in simple language—no technical skills required.</p>
+        </div>
+
+        <div class="feature-card">
+            <i class="fas fa-brain fa-3x feature-icon"></i>
+            <h3>AI-Powered Segmentation</h3>
+            <p>Advanced video-text models intelligently detect and highlight relevant content.</p>
+        </div>
+
+        <div class="feature-card">
+            <i class="fas fa-video fa-3x feature-icon"></i>
+            <h3>Visual Results</h3>
+            <p>Get clear segmented clips and results tailored to your query.</p>
+        </div>
+
+    </div>
+    <div class="feature-cta">
+        <a href="{{ url_for('inference') }}" class="btn">Try It Now</a>
+    </div>
+</section>
+
+
+    <!-- Inference Section -->
+    <section class="inference" id="inference">
+        <h2>Video-Text Model Inference</h2>
+        <form action="/inference" method="POST" enctype="multipart/form-data">
+            <label>Select a video:</label>
+            <input type="file" name="video" accept="video/*" required><br><br>
+
+            <label>Enter your query:</label><br>
+            <textarea name="text" rows="4" cols="50" required></textarea><br><br>
+
+            <button type="submit">Run Model</button>
+        </form>
+    </section>
+
+<!-- About Section -->
+<section class="about" id="about">
+    <div class="about-container">
+        <div class="about-icon">
+            <i class="fas fa-video fa-4x"></i>
+        </div>
+        <div class="about-content">
+            <h2>About This App</h2>
+            <p>
+                This intelligent web app bridges the gap between video and language. With cutting-edge deep learning, 
+                it allows you to analyze video content by simply asking questions in natural language.
+            </p>
+            <p>
+                Upload any video, describe what you're looking for, and instantly receive segmented, AI-processed results. 
+                It’s fast, intuitive, and built for creators, developers, and researchers alike—no technical experience required.
+            </p>
+        </div>
+    </div>
+</section>
+
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; 2025 VideoTextAI. All rights reserved.</p>
+    </footer>
+
+    <script>
+        const slides = document.querySelectorAll(".slide");
+        const prevBtn = document.querySelector(".slider-btn.prev");
+        const nextBtn = document.querySelector(".slider-btn.next");
+        let slideIndex = 0;
+        let slideInterval;
+    
+        function showSlide(index) {
+            slides.forEach((slide, i) => {
+                slide.classList.remove("active");
+                if (i === index) {
+                    slide.classList.add("active");
+                }
+            });
+        }
+    
+        function nextSlide() {
+            slideIndex = (slideIndex + 1) % slides.length;
+            showSlide(slideIndex);
+        }
+    
+        function prevSlide() {
+            slideIndex = (slideIndex - 1 + slides.length) % slides.length;
+            showSlide(slideIndex);
+        }
+    
+        function startAutoSlide() {
+            slideInterval = setInterval(nextSlide, 5000);
+        }
+    
+        function stopAutoSlide() {
+            clearInterval(slideInterval);
+        }
+    
+        prevBtn.addEventListener("click", () => {
+            stopAutoSlide();
+            prevSlide();
+            startAutoSlide();
+        });
+    
+        nextBtn.addEventListener("click", () => {
+            stopAutoSlide();
+            nextSlide();
+            startAutoSlide();
+        });
+    
+        // Initialize
+        startAutoSlide();
+    </script>
+    
+</body>
+</html>
+

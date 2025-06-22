@@ -16,6 +16,63 @@ from typing import Dict, List
 from misc import NestedTensor
 from models.position_encoding import PositionEmbeddingSine2D
 
+# === Backbone Configs ===
+configs = {
+    'video-swin-t': dict(
+        patch_size=(1,4,4),
+        embed_dim=96,
+        depths=[2, 2, 6, 2],
+        num_heads=[3, 6, 12, 24],
+        window_size=(8,7,7),
+        mlp_ratio=4.,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.2,
+        patch_norm=True,
+        use_checkpoint=False
+    ),
+    'video-swin-s': dict(
+        patch_size=(1,4,4),
+        embed_dim=96,
+        depths=[2, 2, 18, 2],
+        num_heads=[3, 6, 12, 24],
+        window_size=(8,7,7),
+        mlp_ratio=4.,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.2,
+        patch_norm=True,
+        use_checkpoint=False
+    ),
+    'video-swin-b': dict(
+        patch_size=(1,4,4),
+        embed_dim=128,
+        depths=[2, 2, 18, 2],
+        num_heads=[4, 8, 16, 32],
+        window_size=(8,7,7),
+        mlp_ratio=4.,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.,
+        attn_drop_rate=0.,
+        drop_path_rate=0.2,
+        patch_norm=True,
+        use_checkpoint=False
+    )
+}
+
+# === Alias mapping for friendly CLI naming ===
+BACKBONE_NAME_MAP = {
+    'swin_base': 'video-swin-b',
+    'swin_small': 'video-swin-s',
+    'swin_tiny': 'video-swin-t',
+}
+
+
 class Mlp(nn.Module):
     """ Multilayer perceptron."""
 
@@ -715,68 +772,68 @@ class BackboneBase(nn.Module):
             out[name] = NestedTensor(x, mask)
         return out
 
-class Backbone(BackboneBase):
-    """ResNet backbone with frozen BatchNorm."""
-    def __init__(self, name: str,
-                 checkpoint: bool = False,
-                 pretrained: str = None):
-        assert name in ['video-swin-t', 'video-swin-s', 'video-swin-b']
-        cfgs = configs[name]
-        cfgs.update({'use_checkpoint': checkpoint})
-        out_indices = (0, 1, 2, 3)
-        strides = [int(2**(i+2)) for i in out_indices]
-        num_channels = [int(cfgs['embed_dim'] * 2**i) for i in out_indices]
-        backbone = VideoSwinTransformerBackbone(True, pretrained, True, **cfgs)
-        super().__init__(backbone, strides, num_channels)
+# class Backbone(BackboneBase):
+#     """ResNet backbone with frozen BatchNorm."""
+#     def __init__(self, name: str,
+#                  checkpoint: bool = False,
+#                  pretrained: str = None):
+#         assert name in ['video-swin-t', 'video-swin-s', 'video-swin-b']
+#         cfgs = configs[name]
+#         cfgs.update({'use_checkpoint': checkpoint})
+#         out_indices = (0, 1, 2, 3)
+#         strides = [int(2**(i+2)) for i in out_indices]
+#         num_channels = [int(cfgs['embed_dim'] * 2**i) for i in out_indices]
+#         backbone = VideoSwinTransformerBackbone(True, pretrained, True, **cfgs)
+#         super().__init__(backbone, strides, num_channels)
 
 
-configs = {
-    'video-swin-t': 
-                   dict(patch_size=(1,4,4),
-                        embed_dim=96,
-                        depths=[2, 2, 6, 2],
-                        num_heads=[3, 6, 12, 24],
-                        window_size=(8,7,7),
-                        mlp_ratio=4.,
-                        qkv_bias=True,
-                        qk_scale=None,
-                        drop_rate=0.,
-                        attn_drop_rate=0.,
-                        drop_path_rate=0.2,
-                        patch_norm=True,
-                        use_checkpoint=False
-                        ),
-    'video-swin-s': 
-                   dict(patch_size=(1,4,4),
-                        embed_dim=96,
-                        depths=[2, 2, 18, 2],
-                        num_heads=[3, 6, 12, 24],
-                        window_size=(8,7,7),
-                        mlp_ratio=4.,
-                        qkv_bias=True,
-                        qk_scale=None,
-                        drop_rate=0.,
-                        attn_drop_rate=0.,
-                        drop_path_rate=0.2,
-                        patch_norm=True,
-                        use_checkpoint=False
-                        ),
-    'video-swin-b': 
-                   dict(patch_size=(1,4,4),
-                        embed_dim=128,
-                        depths=[2, 2, 18, 2],
-                        num_heads=[4, 8, 16, 32],
-                        window_size=(8,7,7),
-                        mlp_ratio=4.,
-                        qkv_bias=True,
-                        qk_scale=None,
-                        drop_rate=0.,
-                        attn_drop_rate=0.,
-                        drop_path_rate=0.2,
-                        patch_norm=True,
-                        use_checkpoint=False
-                        )
-}
+# configs = {
+#     'video-swin-t': 
+#                    dict(patch_size=(1,4,4),
+#                         embed_dim=96,
+#                         depths=[2, 2, 6, 2],
+#                         num_heads=[3, 6, 12, 24],
+#                         window_size=(8,7,7),
+#                         mlp_ratio=4.,
+#                         qkv_bias=True,
+#                         qk_scale=None,
+#                         drop_rate=0.,
+#                         attn_drop_rate=0.,
+#                         drop_path_rate=0.2,
+#                         patch_norm=True,
+#                         use_checkpoint=False
+#                         ),
+#     'video-swin-s': 
+#                    dict(patch_size=(1,4,4),
+#                         embed_dim=96,
+#                         depths=[2, 2, 18, 2],
+#                         num_heads=[3, 6, 12, 24],
+#                         window_size=(8,7,7),
+#                         mlp_ratio=4.,
+#                         qkv_bias=True,
+#                         qk_scale=None,
+#                         drop_rate=0.,
+#                         attn_drop_rate=0.,
+#                         drop_path_rate=0.2,
+#                         patch_norm=True,
+#                         use_checkpoint=False
+#                         ),
+#     'video-swin-b': 
+#                    dict(patch_size=(1,4,4),
+#                         embed_dim=128,
+#                         depths=[2, 2, 18, 2],
+#                         num_heads=[4, 8, 16, 32],
+#                         window_size=(8,7,7),
+#                         mlp_ratio=4.,
+#                         qkv_bias=True,
+#                         qk_scale=None,
+#                         drop_rate=0.,
+#                         attn_drop_rate=0.,
+#                         drop_path_rate=0.2,
+#                         patch_norm=True,
+#                         use_checkpoint=False
+#                         )
+# }
 
 class Joiner(nn.Sequential):
     def __init__(self, backbone, position_embedding):
@@ -800,22 +857,62 @@ class Joiner(nn.Sequential):
         return out, pos
 
     
+# def build_video_swin_backbone(args):
+#     n_step = args.DeformTransformer['d_model'] // 2
+#     position_embedding = PositionEmbeddingSine2D(n_step, normalize=True)
+#     backbone = Backbone(args.backbone, args.use_checkpoint, args.backbone_pretrained_path)
+#     model = Joiner(backbone, position_embedding)
+#     return model
+    
+
+# if __name__ == '__main__':
+#     cfgs = configs['video_swin_t_p4w7']
+#     model = VideoSwinTransformerBackbone(True, 'video_swin_pretrained/swin_tiny_patch244_window877_kinetics400_1k.pth', True, **cfgs).cuda()
+#     inputs = torch.randn(10, 3,384,224).cuda() # 10 = 2 x 5
+#     import ipdb; ipdb.set_trace()
+#     # outs
+#     # 0: (10, 96, 96, 56)
+#     # 1: (10, 192, 48, 28)
+#     # 2: (10, 384, 24, 14)
+#     # 3: (10, 768, 12, 7)
+#     out = model(inputs, num_frames=5)
+# Alias mapping from user-friendly names to config keys
+BACKBONE_NAME_MAP = {
+    'swin_base': 'video-swin-b',
+    'swin_small': 'video-swin-s',
+    'swin_tiny': 'video-swin-t',
+}
+
+class Backbone(BackboneBase):
+    """Video Swin Transformer backbone with frozen BatchNorm."""
+    def __init__(self, name: str,
+                 checkpoint: bool = False,
+                 pretrained: str = None):
+        # Normalize name
+        name = BACKBONE_NAME_MAP.get(name, name)
+
+        assert name in configs, f"Backbone '{name}' is not supported. Available: {list(configs.keys())}"
+
+        cfgs = configs[name]
+        cfgs.update({'use_checkpoint': checkpoint})
+
+        out_indices = (0, 1, 2, 3)
+        strides = [int(2**(i+2)) for i in out_indices]
+        num_channels = [int(cfgs['embed_dim'] * 2**i) for i in out_indices]
+
+        backbone = VideoSwinTransformerBackbone(True, pretrained, True, **cfgs)
+        super().__init__(backbone, strides, num_channels)
+
+
 def build_video_swin_backbone(args):
     n_step = args.DeformTransformer['d_model'] // 2
     position_embedding = PositionEmbeddingSine2D(n_step, normalize=True)
-    backbone = Backbone(args.backbone, args.use_checkpoint, args.backbone_pretrained_path)
+
+    backbone = Backbone(
+        name=args.backbone,
+        checkpoint=args.use_checkpoint,
+        pretrained=args.backbone_pretrained_path
+    )
+
     model = Joiner(backbone, position_embedding)
     return model
-    
-
-if __name__ == '__main__':
-    cfgs = configs['video_swin_t_p4w7']
-    model = VideoSwinTransformerBackbone(True, 'video_swin_pretrained/swin_tiny_patch244_window877_kinetics400_1k.pth', True, **cfgs).cuda()
-    inputs = torch.randn(10, 3,384,224).cuda() # 10 = 2 x 5
-    import ipdb; ipdb.set_trace()
-    # outs
-    # 0: (10, 96, 96, 56)
-    # 1: (10, 192, 48, 28)
-    # 2: (10, 384, 24, 14)
-    # 3: (10, 768, 12, 7)
-    out = model(inputs, num_frames=5)

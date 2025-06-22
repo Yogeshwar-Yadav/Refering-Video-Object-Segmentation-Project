@@ -88,9 +88,9 @@ def create_jhmdb_sentences_ground_truth_annotations(samples_metadata, dataset_co
         json.dump(dataset_dict, f)
 
 if __name__ == '__main__':
-    dataset_path = "/mnt/data_16TB/lzy23/rvosdata/jhmdb_sentences"
-    sample_meta = get_samples_metadata(dataset_path, generate_new_samples_metadata=False, distributed=False)
+    dataset_path = "/home/nazir/NeurIPS2023_SOC/datasets/jhmdb_sentences"
+    sample_meta = get_samples_metadata(dataset_path, generate_new_samples_metadata=True, distributed=False)
     subset_type = 'test'
-    output_path = f'/mnt/data_16TB/lzy23/rvosdata/jhmdb_sentences/jhmdb_sentences_{subset_type}_annotations_in_coco_format.json'
+    output_path = f'/home/nazir/NeurIPS2023_SOC/rvosdata/jhmdb_sentences_{subset_type}_annotations_in_coco_format.json'
     create_jhmdb_sentences_ground_truth_annotations(sample_meta, output_path)
 

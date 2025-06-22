@@ -29,7 +29,7 @@ backbone_pretrained:
   desc: whether to load pretrained weights
   value: true
 backbone_pretrained_path:
-  value: "/mnt/data_16TB/lzy23/pretrained/pretrained_swin_transformer/swin_tiny_patch244_window877_kinetics400_1k.pth"
+  value: "/home/nazir/NeurIPS2023_SOC/pretrained/video_swin_base.pth"
 train_backbone:
   value: true
 use_checkpoint:
@@ -74,7 +74,7 @@ freeze_text_encoder:
   #desc: Whether to freeze the weights of the text encoder during training
   #value: true
 text_encoder_type: 
-  value: '/mnt/data_16TB/lzy23/pretrained/pretrained_roberta'
+  value: '/home/nazir/NeurIPS2023_SOC/pretrained/pretrained_roberta'
   #desc: text encoder to use. options - roberta-base, roberta-large, distilroberta-base
   #value:
 num_classes:

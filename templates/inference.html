@@ -1,0 +1,85 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Run Inference | VideoTextAI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="/" class="logo">VideoTextAI</a>
+            <ul class="nav-links">
+                <li><a href="{{ url_for('home') }}">Home</a></li>
+                <li><a href="{{ url_for('home') }}#features">Features</a></li>
+                <li><a href="{{ url_for('inference') }}" class="active">Inference</a></li>
+                <li><a href="{{ url_for('home') }}#about">About</a></li>
+            </ul>
+        </div>
+    </nav>
+
+<!-- Inference Section -->
+<section class="inference-page">
+    <div class="container inference-container">
+        <div class="inference-card">
+            <h2>🎥 Run Video-Text Inference</h2>
+            <p class="intro-text">Upload a video and ask anything about its content. Our AI model will do the rest!</p>
+
+            <form id="inference-form" action="/inference" method="POST" enctype="multipart/form-data" class="inference-form">
+                <div class="form-group">
+                    <label for="video">📁 Select a Video:</label>
+                    <input type="file" name="video" accept="video/*" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="text">📝 Enter Your Query:</label>
+                    <textarea name="text" rows="5" placeholder="E.g., 'Where is the person with the red shirt?'" required></textarea>
+                </div>
+
+                <button type="submit" class="btn">🚀 Run Model</button>
+            </form>
+        </div>
+    </div>
+</section>
+
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 VideoTextAI. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Add the following script -->
+    <script>
+        document.getElementById('inference-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+
+            // Show a loading message
+            document.querySelector('.inference-page').innerHTML = '<h3>Processing...</h3><p>Please wait while the model processes your video...</p>';
+
+            fetch('/inference', {
+                method: 'POST',
+                body: formData
+            }).then(response => {
+                if (response.ok) {
+                    window.location.href = '/progress';  // Redirect to progress page
+                } else {
+                    alert('❌ Something went wrong. Please try again.');
+                }
+            }).catch(err => {
+                alert('❌ Submission failed. Please try again.');
+                console.error(err);
+            });
+        });
+    </script>
+
+</body>
+</html>

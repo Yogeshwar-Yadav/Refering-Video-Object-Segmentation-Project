@@ -47,7 +47,12 @@ def get_extensions():
         raise NotImplementedError('Cuda is not availabel')
 
     sources = [os.path.join(extensions_dir, s) for s in sources]
-    include_dirs = [extensions_dir]
+    include_dirs = [
+    extensions_dir,
+    '/usr/include/python3.10',
+    '/usr/include/x86_64-linux-gnu/python3.10'
+    ]
+
     ext_modules = [
         extension(
             "MultiScaleDeformableAttention",

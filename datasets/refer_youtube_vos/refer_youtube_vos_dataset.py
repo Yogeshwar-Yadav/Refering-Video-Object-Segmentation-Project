@@ -11,8 +11,64 @@ import multiprocessing
 from PIL import Image
 import numpy as np
 from einops import rearrange
-import datasets.transforms as T
-from misc import nested_tensor_from_videos_list
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+# import datasets.transforms as T
+from torchvision.transforms import Resize
+import random
+import torchvision.transforms as T
+from datasets.transforms import PhotometricDistort
+# from misc import nested_tensor_from_videos_list
+from torch import Tensor
+from typing import Optional, List
+def _max_by_axis(the_list):
+    # type: (List[List[int]]) -> List[int]
+    maxes = the_list[0]
+    for sublist in the_list[1:]:
+        for index, item in enumerate(sublist):
+            maxes[index] = max(maxes[index], item)
+    return maxes
+
+class NestedTensor(object):
+    def __init__(self, tensors, mask: Optional[Tensor]):
+        self.tensors = tensors
+        self.mask = mask
+
+    def to(self, device):
+        cast_tensor = self.tensors.to(device)
+        mask = self.mask
+        if mask is not None:
+            assert mask is not None
+            cast_mask = mask.to(device)
+        else:
+            cast_mask = None
+        return NestedTensor(cast_tensor, cast_mask)
+
+    def decompose(self):
+        return self.tensors, self.mask
+
+    def __repr__(self):
+        return str(self.tensors)
+
+def nested_tensor_from_videos_list(videos_list: List[Tensor]):
+    """
+    This function receives a list of videos (each of shape [T, C, H, W]) and returns a NestedTensor of the padded
+    videos (shape [T, B, C, PH, PW], along with their padding masks (true for padding areas, false otherwise, of shape
+    [T, B, PH, PW].
+    """
+    max_size = _max_by_axis([list(img.shape) for img in videos_list])
+    padded_batch_shape = [len(videos_list)] + max_size
+    b, t, c, h, w = padded_batch_shape
+    dtype = videos_list[0].dtype
+    device = videos_list[0].device
+    padded_videos = torch.zeros(padded_batch_shape, dtype=dtype, device=device)
+    videos_pad_masks = torch.ones((b, t, h, w), dtype=torch.bool, device=device)
+    for vid_frames, pad_vid_frames, vid_pad_m in zip(videos_list, padded_videos, videos_pad_masks):
+        pad_vid_frames[:vid_frames.shape[0], :, :vid_frames.shape[2], :vid_frames.shape[3]].copy_(vid_frames)
+        vid_pad_m[:vid_frames.shape[0], :vid_frames.shape[2], :vid_frames.shape[3]] = False
+    # transpose the temporal and batch dims and create a NestedTensor:
+    return NestedTensor(padded_videos.transpose(0, 1), videos_pad_masks.transpose(0, 1))
+
 
 ytvos_category_dict = {
     'airplane': 0, 'ape': 1, 'bear': 2, 'bike': 3, 'bird': 4, 'boat': 5, 'bucket': 6, 'bus': 7, 'camel': 8, 'cat': 9, 
@@ -43,7 +99,7 @@ class ReferYouTubeVOSDataset(Dataset):
                  distributed=False, device=None, **kwargs):
         super(ReferYouTubeVOSDataset, self).__init__()
         assert subset_type in ['train', 'test'], "error, unsupported dataset subset type. use 'train' or 'test'."
-        dataset_path = '/mnt/data_16TB/lzy23/rvosdata/refer_youtube_vos'
+        dataset_path = '/home/nazir/NeurIPS2023_SOC/rvosdata/refer_youtube_vos'
         if subset_type == 'test':
             subset_type = 'valid'  # Refer-Youtube-VOS is tested on its 'validation' subset (see description above)
         self.subset_type = subset_type
@@ -161,7 +217,7 @@ class ReferYouTubeVOSDataset(Dataset):
         h, w = original_frame_size
 
         if self.subset_type == 'train':
-            with open(path.join('/mnt/data_16TB/lzy23/rvosdata/refer_youtube_vos/train', 'meta.json'), 'r') as f:
+            with open(path.join('/home/nazir/NeurIPS2023_SOC/rvosdata/refer_youtube_vos/train', 'meta.json'), 'r') as f:
                 subset_metas_by_video = json.load(f)['videos']
             # read the instance masks:
             annotation_paths = [path.join(self.mask_annotations_dir, video_id, f'{idx}.png') for idx in frame_indices]
@@ -248,14 +304,15 @@ class A2dSentencesTransforms:
         self.random_color = subset_type == 'train' and random_color
         normalize = T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         scales = [train_short_size]  # no more scales for now due to GPU memory constraints. might be changed later
-        self.photometricDistort = T.PhotometricDistort()
+        self.photometricDistort = PhotometricDistort()
         transforms = []
         if resize_and_crop_augmentations:
             if subset_type == 'train':
-                transforms.append(T.RandomResize(scales, max_size=train_max_size))
+                scale = random.choice(scales)
+                transforms.append(Resize(scale))
             # elif subset_type == 'test':
             else:
-                transforms.append(T.RandomResize([eval_short_size], max_size=eval_max_size)),
+                transforms.append(T.Resize(eval_short_size))
         transforms.extend([T.ToTensor(), normalize])
         self.size_transforms = T.Compose(transforms)
 
@@ -272,7 +329,7 @@ class A2dSentencesTransforms:
             text_query = text_query.replace('left', '@').replace('right', 'left').replace('@', 'right')
         if self.random_color and torch.randn(1) > 0.5:
             source_frames, targets = self.photometricDistort(source_frames, targets)
-        source_frames, targets = list(zip(*[self.size_transforms(f, t) for f, t in zip(source_frames, targets)]))
+        source_frames, targets = list(zip(*[(self.size_transforms(f), t) for f, t in zip(source_frames, targets)]))
         source_frames = torch.stack(source_frames)  # [T, 3, H, W]
         return source_frames, targets, text_query
 

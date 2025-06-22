@@ -19,11 +19,16 @@ def flatten_temporal_batch_dims(outputs, targets):
 
 
 def create_output_dir(config):
-    root = '/mnt/data_16TB/lzy23/SOC'
-    output_dir_path = path.join(root, 'runs', config.dataset_name, config.version)
+    if config.output_dir:
+        output_dir_path = config.output_dir
+    else:
+        root = '/home/nazir/NeurIPS2023_SOC/outputs'
+        output_dir_path = path.join(root, 'runs', config.dataset_name, config.version)
+
     os.makedirs(output_dir_path, exist_ok=True)
     shutil.copyfile(src=config.config_path, dst=path.join(output_dir_path, 'config.yaml'))
     return output_dir_path
+
 
 
 def create_checkpoint_dir(output_dir_path):

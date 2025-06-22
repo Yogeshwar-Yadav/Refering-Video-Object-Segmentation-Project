@@ -15,6 +15,45 @@ class A2DSentencesPostProcess(nn.Module):
         super(A2DSentencesPostProcess, self).__init__()
 
     @torch.inference_mode()
+    # def forward(self, outputs, resized_padded_sample_size, resized_sample_sizes, orig_sample_sizes):
+    #     """ Perform the computation
+    #     Parameters:
+    #         outputs: raw outputs of the model
+    #         resized_padded_sample_size: size of samples (input to model) after size augmentation + padding.
+    #         resized_sample_sizes: size of samples after size augmentation but without padding.
+    #         orig_sample_sizes: original size of the samples (no augmentations or padding)
+    #     """
+    #     pred_cls = outputs['pred_cls'] #[t b nq 1]
+    #     pred_cls = pred_cls.flatten(0, 1) #t*b nq, 1
+        
+    #     # prob = F.softmax(pred_cls, dim=-1) #[t*B，Query, 2]
+    #     scores = pred_cls[..., 0].sigmoid()
+    #     # scores = prob[..., 0]  #[t*b，nq]
+
+    #     # pred_logit = outputs['pred_logit'] #[B, N, C]
+    #     # text_sentence_feature = outputs['text_sentence_feature']  #[b, c]
+    #     # text_sentence_feature = text_sentence_feature.unsqueeze(1)
+    #     # qt_sim = pred_logit @ text_sentence_feature.transpose(1, 2) #[b n 1]
+    #     # qt_sim = torch.softmax(qt_sim.squeeze(-1),dim=-1)    #[b nq]
+    #     # scores_t = qt_sim
+
+    #     pred_masks = outputs['pred_masks']
+    #     pred_masks = F.interpolate(pred_masks, size=resized_padded_sample_size, mode="bilinear", align_corners=False)
+    #     pred_masks = (pred_masks.sigmoid() > 0.5)
+    #     processed_pred_masks, rle_masks = [], []
+    #     for f_pred_masks, resized_size, orig_size in zip(pred_masks, resized_sample_sizes, orig_sample_sizes):
+    #         f_mask_h, f_mask_w = resized_size  # resized shape without padding
+    #         f_pred_masks_no_pad = f_pred_masks[:, :f_mask_h, :f_mask_w].unsqueeze(1)  # remove the samples' padding
+    #         # resize the samples back to their original dataset (target) size for evaluation
+    #         f_pred_masks_processed = F.interpolate(f_pred_masks_no_pad.float(), size=orig_size, mode="nearest")
+    #         f_pred_rle_masks = [mask_util.encode(np.array(mask[0, :, :, np.newaxis], dtype=np.uint8, order="F"))[0]
+    #                             for mask in f_pred_masks_processed.cpu()]
+    #         processed_pred_masks.append(f_pred_masks_processed)
+    #         rle_masks.append(f_pred_rle_masks)
+    #     predictions = [{'scores': s, 'masks': m, 'rle_masks': rle}
+    #                    for s, m, rle in zip(scores, processed_pred_masks, rle_masks)]
+    #     return predictions
+
     def forward(self, outputs, resized_padded_sample_size, resized_sample_sizes, orig_sample_sizes):
         """ Perform the computation
         Parameters:
@@ -23,36 +62,43 @@ class A2DSentencesPostProcess(nn.Module):
             resized_sample_sizes: size of samples after size augmentation but without padding.
             orig_sample_sizes: original size of the samples (no augmentations or padding)
         """
-        pred_cls = outputs['pred_cls'] #[t b nq 1]
-        pred_cls = pred_cls.flatten(0, 1) #t*b nq, 1
-        
-        # prob = F.softmax(pred_cls, dim=-1) #[t*B，Query, 2]
+        pred_cls = outputs['pred_cls']  # [t b nq 1]
+        pred_cls = pred_cls.flatten(0, 1)  # [t*b nq, 1]
         scores = pred_cls[..., 0].sigmoid()
-        # scores = prob[..., 0]  #[t*b，nq]
 
-        # pred_logit = outputs['pred_logit'] #[B, N, C]
-        # text_sentence_feature = outputs['text_sentence_feature']  #[b, c]
-        # text_sentence_feature = text_sentence_feature.unsqueeze(1)
-        # qt_sim = pred_logit @ text_sentence_feature.transpose(1, 2) #[b n 1]
-        # qt_sim = torch.softmax(qt_sim.squeeze(-1),dim=-1)    #[b nq]
-        # scores_t = qt_sim
+        pred_masks = outputs['pred_masks']  # Expected: [t*b, nq, H, W]
+        
+        # Fix: Handle 5D tensors with extra singleton dim
+        if pred_masks.dim() == 5 and pred_masks.shape[1] == 1:
+            pred_masks = pred_masks.squeeze(1)
 
-        pred_masks = outputs['pred_masks']
-        pred_masks = F.interpolate(pred_masks, size=resized_padded_sample_size, mode="bilinear", align_corners=False)
+        if pred_masks.dim() == 3:
+            pred_masks = pred_masks.unsqueeze(1)  # Make it [N, 1, H, W]
+
+        print("Pred masks shape before interpolate:", pred_masks.shape)
+
+        B, Q, H, W = pred_masks.shape
+        pred_masks = pred_masks.reshape(B * Q, 1, H, W)
+        pred_masks = F.interpolate(pred_masks.float(), size=resized_padded_sample_size, mode="bilinear", align_corners=False)
+        pred_masks = pred_masks.reshape(B, Q, *resized_padded_sample_size)
+
         pred_masks = (pred_masks.sigmoid() > 0.5)
+
         processed_pred_masks, rle_masks = [], []
         for f_pred_masks, resized_size, orig_size in zip(pred_masks, resized_sample_sizes, orig_sample_sizes):
-            f_mask_h, f_mask_w = resized_size  # resized shape without padding
-            f_pred_masks_no_pad = f_pred_masks[:, :f_mask_h, :f_mask_w].unsqueeze(1)  # remove the samples' padding
-            # resize the samples back to their original dataset (target) size for evaluation
+            f_mask_h, f_mask_w = resized_size
+            f_pred_masks_no_pad = f_pred_masks[:, :f_mask_h, :f_mask_w].unsqueeze(1)  # [nq, 1, H, W]
             f_pred_masks_processed = F.interpolate(f_pred_masks_no_pad.float(), size=orig_size, mode="nearest")
+
             f_pred_rle_masks = [mask_util.encode(np.array(mask[0, :, :, np.newaxis], dtype=np.uint8, order="F"))[0]
                                 for mask in f_pred_masks_processed.cpu()]
             processed_pred_masks.append(f_pred_masks_processed)
             rle_masks.append(f_pred_rle_masks)
+
         predictions = [{'scores': s, 'masks': m, 'rle_masks': rle}
-                       for s, m, rle in zip(scores, processed_pred_masks, rle_masks)]
+                    for s, m, rle in zip(scores, processed_pred_masks, rle_masks)]
         return predictions
+
 
 class PostProcess(nn.Module):
     """ This module converts the model's output into the format expected by the coco api"""

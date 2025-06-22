@@ -39,7 +39,7 @@ class SOC(nn.Module):
             aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
         """
         super().__init__()
-        if config.backbone in ["video-swin-t", "video-swin-s", "video-swin-b"]:
+        if config.backbone in ["video-swin-t", "video-swin-s", "video-swin-b", "swin_base"]:
             self.backbone = build_video_swin_backbone(config)
         elif config.backbone in ["resnet50"]:
             self.backbone = build_backbone(config)
@@ -181,7 +181,7 @@ class SOC(nn.Module):
         return text_feature, text_sentence_feature
     
 
-    def forward(self, samples: NestedTensor, valid_indices, text_queries, targets):
+    def forward(self, samples: NestedTensor, valid_indices, text_queries, targets=None):
         """The forward expects a NestedTensor, which consists of:
                - samples.tensor: Batched frames of shape [time x batch_size x 3 x H x W]
                - samples.mask: A binary mask of shape [time x batch_size x H x W], containing 1 on padded pixels
@@ -196,7 +196,12 @@ class SOC(nn.Module):
         """
         device = samples.tensors.device
         text_features, text_sentence_feature = self.forward_text(text_queries, device)
-        backbone_out, pos = self.backbone(samples) #[backbone_out = [(b t) c h w]] mask: [(b t) h w]
+        backbone_out, pos = self.backbone(samples)
+
+        # 🟩 Add this below
+        total_frames = samples.tensors.shape[0]
+        print(f"📹 Total frames in video: {total_frames}")
+
         # keep only the valid frames (frames which are annotated):
         # (for example, in a2d-sentences only the center frame in each window is annotated).
         
@@ -359,9 +364,24 @@ class SOC(nn.Module):
             dynamic_mask_head_params = rearrange(dynamic_mask_head_params, 't b q n -> b (t q) n', b=B, t=T)
             lvl_references = inter_references[lvl, ..., :2]
             lvl_references = rearrange(lvl_references, '(b t) q n -> b (t q) n', b=B, t=T)
-            outputs_seg_mask = self.dynamic_mask_with_coords(mask_features, dynamic_mask_head_params, lvl_references, targets)
+
+            if targets is not None:
+                outputs_seg_mask = self.dynamic_mask_with_coords(
+                    mask_features,
+                    dynamic_mask_head_params,
+                    lvl_references,
+                    targets
+                )
+            else:
+                outputs_seg_mask = self.dynamic_mask_with_coords(
+                    mask_features,
+                    dynamic_mask_head_params,
+                    lvl_references
+                )
+
             outputs_seg_mask = rearrange(outputs_seg_mask, 'b (t q) h w -> t b q h w', t=T)
             outputs_seg_masks.append(outputs_seg_mask)
+
         output_masks = torch.stack(outputs_seg_masks, dim=0) #[l t b q h w]
         # if self.vl_loss:
         #     outputs_is_referred = self.is_referred_head(hs_VOC)  # [L,T, B, N, 2]
@@ -388,79 +408,187 @@ class SOC(nn.Module):
                             'pred_cls': pir,
                             }
                 layer_outputs.append(layer_out)
-        out = layer_outputs[-1]  # the output for the last decoder layer is used by default
+        out = layer_outputs[-1]
         if self.aux_loss:
             out['aux_outputs'] = layer_outputs[:-1]
+        out['total_frames'] = total_frames  # 🟩 Add this
         return out
+
 
     def num_parameters(self):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
     
-    def dynamic_mask_with_coords(self, mask_features, mask_head_params, reference_points, targets):
+    # def dynamic_mask_with_coords(self, mask_features, mask_head_params, reference_points, targets=None):
+    #     """
+    #     Add the relative coordinates to the mask_features channel dimension,
+    #     and perform dynamic mask conv.
+
+    #     Args:
+    #         mask_features: [batch_size, time, c, h, w]
+    #         mask_head_params: [batch_size, time * num_queries_per_frame, num_params]
+    #         reference_points: [batch_size, time * num_queries_per_frame, 2], cxcy
+    #         targets (list[dict] or None): length is batch size. 
+    #             If provided, must contain key 'size' for scaling reference points.
+
+    #     Returns:
+    #         outputs_seg_mask: [batch_size, time * num_queries_per_frame, h, w]
+    #     """
+    #     device = mask_features.device
+    #     b, t, c, h, w = mask_features.shape
+    #     _, num_queries = reference_points.shape[:2]
+    #     q = num_queries // t  # num_queries_per_frame
+
+    #     # Rescale reference points from normalized cxcy to image size
+    #     if targets is not None:
+    #         new_reference_points = []
+    #         for i in range(b):
+    #             if targets[i] is None or 'size' not in targets[i]:
+    #                 raise ValueError(f"[ERROR] targets[{i}] is invalid or missing 'size' key: {targets[i]}")
+    #             img_h, img_w = targets[i]['size']
+    #             scale_f = torch.tensor([img_w, img_h], dtype=torch.float, device=device)
+    #             tmp_reference_points = reference_points[i] * scale_f[None, :]
+    #             new_reference_points.append(tmp_reference_points)
+    #         reference_points = torch.stack(new_reference_points, dim=0)
+    #     else:
+    #         # Assuming input images are square and have shape (h, w) = (mask_feat_stride * h, mask_feat_stride * w)
+    #         img_h, img_w = h * self.mask_feat_stride, w * self.mask_feat_stride
+    #         scale_f = torch.tensor([img_w, img_h], dtype=torch.float, device=device)
+    #         reference_points = reference_points * scale_f[None, None, :]
+
+    #     # Compute relative coordinates
+    #     if self.rel_coord:
+    #         reference_points = rearrange(reference_points, 'b (t q) n -> b t q n', t=t, q=q)
+    #         locations = compute_locations(h, w, device=device, stride=self.mask_feat_stride)
+    #         relative_coords = reference_points.reshape(b, t, q, 1, 1, 2) - \
+    #                         locations.reshape(1, 1, 1, h, w, 2)
+    #         relative_coords = relative_coords.permute(0, 1, 2, 5, 3, 4)  # [b, t, q, 2, h, w]
+
+    #         # Expand mask features and concat relative coords
+    #         mask_features = repeat(mask_features, 'b t c h w -> b t q c h w', q=q)
+    #         mask_features = torch.cat([mask_features, relative_coords], dim=3)
+    #     else:
+    #         mask_features = repeat(mask_features, 'b t c h w -> b t q c h w', q=q)
+
+    #     # Flatten for dynamic conv
+    #     mask_features = mask_features.reshape(1, -1, h, w)
+    #     mask_head_params = mask_head_params.flatten(0, 1)
+    #     weights, biases = parse_dynamic_params(
+    #         mask_head_params, self.dynamic_mask_channels,
+    #         self.weight_nums, self.bias_nums
+    #     )
+
+    #     # Run dynamic conv
+    #     mask_logits = self.mask_heads_forward(mask_features, weights, biases, mask_head_params.shape[0])
+    #     mask_logits = mask_logits.reshape(-1, 1, h, w)
+
+    #     # Upsample
+    #     assert self.mask_feat_stride >= self.mask_out_stride
+    #     assert self.mask_feat_stride % self.mask_out_stride == 0
+    #     mask_logits = aligned_bilinear(mask_logits, int(self.mask_feat_stride / self.mask_out_stride))
+    #     mask_logits = mask_logits.reshape(b, num_queries, mask_logits.shape[-2], mask_logits.shape[-1])
+
+    #     return mask_logits  # [batch_size, time * num_queries_per_frame, H, W]
+
+    def dynamic_mask_with_coords(self, mask_features, mask_head_params, reference_points, targets=None):
         """
         Add the relative coordinates to the mask_features channel dimension,
         and perform dynamic mask conv.
 
         Args:
-            mask_features: [batch_size, time, c, h, w]
+            mask_features: [batch_size, time, c, h, w] (as NestedTensor or Tensor)
             mask_head_params: [batch_size, time * num_queries_per_frame, num_params]
             reference_points: [batch_size, time * num_queries_per_frame, 2], cxcy
-            targets (list[dict]): length is batch size
-                we need the key 'size' for computing location.
-        Return:
+            targets (list[dict] or None): length is batch size. 
+                If provided, must contain key 'size' for scaling reference points.
+
+        Returns:
             outputs_seg_mask: [batch_size, time * num_queries_per_frame, h, w]
         """
-        device = mask_features.device
-        b, t, c, h, w = mask_features.shape
-        # this is the total query number in all frames
-        _, num_queries = reference_points.shape[:2]  
+        # Check if mask_features is a NestedTensor or a regular Tensor
+        if isinstance(mask_features, NestedTensor):
+            mask_features_tensor = mask_features.tensors  # Access the underlying tensor from NestedTensor
+        else:
+            mask_features_tensor = mask_features  # If it's already a Tensor, use it directly
+
+        device = mask_features_tensor.device  # Now access the device of the tensor
+        b, t, c, h, w = mask_features_tensor.shape  # Shape of the underlying tensor
+        _, num_queries = reference_points.shape[:2]
         q = num_queries // t  # num_queries_per_frame
 
-        # prepare reference points in image size (the size is input size to the model)
-        new_reference_points = [] 
-        for i in range(b):
-            img_h, img_w = targets[0][i]['size']
-            scale_f = torch.stack([img_w, img_h], dim=0) 
-            tmp_reference_points = reference_points[i] * scale_f[None, :] 
-            new_reference_points.append(tmp_reference_points)
-        new_reference_points = torch.stack(new_reference_points, dim=0) 
-        # [batch_size, time * num_queries_per_frame, 2], in image size
-        reference_points = new_reference_points  
+        # Rescale reference points from normalized cxcy to image size
+        # Rescale reference points from normalized cxcy to image size
+        if targets is not None:
+            new_reference_points = []
+            for i in range(b):
+                if targets[i] is None or not isinstance(targets[i], list) or 'size' not in targets[i][0]:
+                    print(f"[DEBUG] Missing or invalid 'size' key in targets[{i}]: {targets[i]}")
+                    raise ValueError(f"[ERROR] targets[{i}] is invalid or missing 'size' key: {targets[i]}")
 
-        # prepare the mask features
-        if self.rel_coord:
-            reference_points = rearrange(reference_points, 'b (t q) n -> b t q n', t=t, q=q) 
-            locations = compute_locations(h, w, device=device, stride=self.mask_feat_stride) 
-            relative_coords = reference_points.reshape(b, t, q, 1, 1, 2) - \
-                                    locations.reshape(1, 1, 1, h, w, 2) # [batch_size, time, num_queries_per_frame, h, w, 2]
-            relative_coords = relative_coords.permute(0, 1, 2, 5, 3, 4) # [batch_size, time, num_queries_per_frame, 2, h, w]
+                size_tensor = targets[i][0]['size']
 
-            # concat features
-            mask_features = repeat(mask_features, 'b t c h w -> b t q c h w', q=q) # [batch_size, time, num_queries_per_frame, c, h, w]
-            mask_features = torch.cat([mask_features, relative_coords], dim=3)
+                print(f"[DEBUG] Original size tensor for targets[{i}]: {size_tensor}")
+
+                size_tensor = size_tensor.cpu() if size_tensor.device != 'cpu' else size_tensor
+                size_list = size_tensor.tolist()
+
+                print(f"[DEBUG] Converted size list for targets[{i}]: {size_list}")
+
+                if len(size_list) != 2:
+                    raise ValueError(f"[ERROR] Invalid size format for targets[{i}]: {size_list}")
+
+                img_h, img_w = int(size_list[0]), int(size_list[1])
+                scale_f = torch.tensor([img_w, img_h], dtype=torch.float, device=device)
+
+                tmp_reference_points = reference_points[i] * scale_f[None, :]
+                new_reference_points.append(tmp_reference_points)
+
+            reference_points = torch.stack(new_reference_points, dim=0)
         else:
-            mask_features = repeat(mask_features, 'b t c h w -> b t q c h w', q=q) # [batch_size, time, num_queries_per_frame, c, h, w]
-        mask_features = mask_features.reshape(1, -1, h, w) 
+            img_h, img_w = h * self.mask_feat_stride, w * self.mask_feat_stride
+            scale_f = torch.tensor([img_w, img_h], dtype=torch.float, device=device)
+            reference_points = reference_points * scale_f[None, None, :]
 
-        # parse dynamic params
-        mask_head_params = mask_head_params.flatten(0, 1) 
+
+
+
+
+
+
+        # Compute relative coordinates
+        if self.rel_coord:
+            reference_points = rearrange(reference_points, 'b (t q) n -> b t q n', t=t, q=q)
+            locations = compute_locations(h, w, device=device, stride=self.mask_feat_stride)
+            relative_coords = reference_points.reshape(b, t, q, 1, 1, 2) - \
+                            locations.reshape(1, 1, 1, h, w, 2)
+            relative_coords = relative_coords.permute(0, 1, 2, 5, 3, 4)  # [b, t, q, 2, h, w]
+
+            mask_features_tensor = repeat(mask_features_tensor, 'b t c h w -> b t q c h w', q=q)
+            mask_features_tensor = torch.cat([mask_features_tensor, relative_coords], dim=3)
+        else:
+            mask_features_tensor = repeat(mask_features_tensor, 'b t c h w -> b t q c h w', q=q)
+
+        # Flatten for dynamic conv
+        mask_features_tensor = mask_features_tensor.reshape(1, -1, h, w)
+        mask_head_params = mask_head_params.flatten(0, 1)
         weights, biases = parse_dynamic_params(
             mask_head_params, self.dynamic_mask_channels,
             self.weight_nums, self.bias_nums
         )
 
-        # dynamic mask conv
-        mask_logits = self.mask_heads_forward(mask_features, weights, biases, mask_head_params.shape[0]) 
+        # Run dynamic conv
+        mask_logits = self.mask_heads_forward(mask_features_tensor, weights, biases, mask_head_params.shape[0])
         mask_logits = mask_logits.reshape(-1, 1, h, w)
 
-        # upsample predicted masks
+        # Upsample
         assert self.mask_feat_stride >= self.mask_out_stride
         assert self.mask_feat_stride % self.mask_out_stride == 0
-
         mask_logits = aligned_bilinear(mask_logits, int(self.mask_feat_stride / self.mask_out_stride))
         mask_logits = mask_logits.reshape(b, num_queries, mask_logits.shape[-2], mask_logits.shape[-1])
 
-        return mask_logits  # [batch_size, time * num_queries_per_frame, h, w]
+        return mask_logits  # [batch_size, time * num_queries_per_frame, H, W]
+
+
+
 
     def mask_heads_forward(self, features, weights, biases, num_insts):
         '''

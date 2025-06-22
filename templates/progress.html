@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Progress</title>
+    <script>
+        function checkStatus() {
+            fetch('/check_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'processing') {
+                        document.getElementById('status').innerText = "🙂Please wait while your video is getting ready!";
+                    } else if (data.status === 'done') {
+                        window.location.href = `/view_result?video_path=${encodeURIComponent(data.video_path)}`;
+                    } else if (data.status === 'error') {
+                        document.getElementById('status').innerText = " 🥺Inference failed:(";
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('status').innerText = "❌ Error checking status.";
+                    console.error(error);
+                });
+        }
+
+        setInterval(checkStatus, 1000);  // Check every second
+    </script>
+</head>
+<body>
+    <h2 id="status">Starting inference...</h2>
+</body>
+</html>
+

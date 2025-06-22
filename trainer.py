@@ -20,7 +20,12 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from metrics import calculate_precision_at_k_and_iou_metrics
 from utils import create_output_dir, create_checkpoint_dir, flatten_temporal_batch_dims, cosine_lr
+# Add the 'datasets' folder to the Python path
+# sys.path.append(os.path.join(os.path.dirname(__file__), 'datasets'))
+
+# Now you can import the dataset modules
 from datasets import build_dataset
+from datasets.custom_single_video_dataset import CustomSingleVideoDataset
 from torch.utils.data import DataLoader, DistributedSampler
 # from torch.utils.data import DataLoader, BatchSampler
 from torch.optim.lr_scheduler import MultiStepLR
@@ -68,24 +73,57 @@ class Trainer:
         else:
             assert False, f'error: dataset {self.dataset_name} is not supported'
 
-        dataset_train = build_dataset(image_set='train', dataset_file=self.dataset_name, **vars(config))
-        dataset_val = build_dataset(image_set='test', dataset_file=self.dataset_name, **vars(config))
-        if self.distributed:
-            self.sampler_train = DistributedSampler(dataset_train, num_replicas=config.world_size, rank=config.rank,
-                                                    shuffle=True, seed=config.seed, drop_last=False)
-        else:
+        if config.running_mode == 'pred':
+            
+
+            # Load the custom one-video dataset
+            custom_dataset = CustomSingleVideoDataset(
+            video_path=config.DATA['VIDEO_PATH']['value'],
+            query_path=config.DATA['TEXT_PATH']['value']
+            )
+
+
+            self.data_loader_train = None
             self.sampler_train = None
-        self.data_loader_train = DataLoader(dataset_train, batch_size=config.batch_size, sampler=self.sampler_train,
-                                            collate_fn=dataset_train.collator, num_workers=config.num_workers,
-                                            pin_memory=True, shuffle=self.sampler_train is None)
-        if self.distributed:
-            sampler_val = DistributedSampler(dataset_val, num_replicas=config.world_size, rank=config.rank, shuffle=False)
+            self.num_batches_per_epoch = 0
+
+            self.data_loader_val = DataLoader(
+                custom_dataset,
+                batch_size=1,
+                shuffle=False,
+                num_workers=0,
+                pin_memory=True
+            )
+
         else:
-            sampler_val = None
-        eval_batch_size = config.eval_batch_size
-        self.data_loader_val = DataLoader(dataset_val, eval_batch_size, sampler=sampler_val, drop_last=False,
-                                          collate_fn=dataset_val.collator, num_workers=config.num_workers,
-                                          pin_memory=True)
+            # Training mode
+            dataset_train = build_dataset(image_set='train', dataset_file=self.dataset_name, **vars(config))
+            if self.distributed:
+                self.sampler_train = DistributedSampler(dataset_train, num_replicas=config.world_size, rank=config.rank,
+                                                        shuffle=True, seed=config.seed, drop_last=False)
+            else:
+                self.sampler_train = None
+            self.data_loader_train = DataLoader(dataset_train, batch_size=config.batch_size, sampler=self.sampler_train,
+                                                collate_fn=dataset_train.collator, num_workers=config.num_workers,
+                                                pin_memory=True, shuffle=self.sampler_train is None)
+            self.num_batches_per_epoch = len(self.data_loader_train)
+
+            dataset_val = build_dataset(image_set='test', dataset_file=self.dataset_name, **vars(config))
+            if self.distributed:
+                sampler_val = DistributedSampler(dataset_val, num_replicas=config.world_size, rank=config.rank, shuffle=False)
+            else:
+                sampler_val = None
+
+            eval_batch_size = config.eval_batch_size
+            self.data_loader_val = DataLoader(
+                dataset_val,
+                eval_batch_size,
+                sampler=sampler_val,
+                drop_last=False,
+                collate_fn=dataset_val.collator,
+                num_workers=config.num_workers,
+                pin_memory=True
+            )
 
         # Optimizer, LR-Scheduler, AMP Grad Scaler:
         param_dicts = [
@@ -97,13 +135,15 @@ class Trainer:
              "lr": config.text_encoder_lr},
         ]
         self.optimizer = torch.optim.AdamW(param_dicts, lr=config.lr, weight_decay=config.weight_decay)
-        self.num_batches_per_epoch = len(self.data_loader_train)
-        if self.dataset_name == 'a2d_sentences':
-            self.lr_scheduler = MultiStepLR(self.optimizer, milestones=config.lr_drop, gamma=0.2, verbose=True)
-            # total_steps = self.num_batches_per_epoch * config.epochs
-            # self.lr_scheduler = cosine_lr(self.optimizer, config.lr, 2000, total_steps)
-        else:  # refer-youtube-vos:
-            self.lr_scheduler = MultiStepLR(self.optimizer, milestones=config.lr_drop, gamma=0.1, verbose=True)
+
+        if config.running_mode != 'pred':
+            if self.dataset_name == 'a2d_sentences':
+                self.lr_scheduler = MultiStepLR(self.optimizer, milestones=config.lr_drop, gamma=0.2, verbose=True)
+            else:  # refer-youtube-vos
+                self.lr_scheduler = MultiStepLR(self.optimizer, milestones=config.lr_drop, gamma=0.1, verbose=True)
+        else:
+            self.lr_scheduler = None
+
         self.grad_scaler = amp.GradScaler(enabled=config.enable_amp)
         self.max_norm = config.clip_max_norm
 
@@ -116,7 +156,6 @@ class Trainer:
         else:
             self.output_dir_path = ''
         if self.distributed:
-            # sync the newly created output dir among all processes:
             output_dir_sync_list = [None for _ in range(self.world_size)]
             dist.all_gather_object(output_dir_sync_list, self.output_dir_path)
             self.output_dir_path = output_dir_sync_list[0]
@@ -127,13 +166,14 @@ class Trainer:
         self.best_mAP = 0
         self.best_loss = math.inf
 
-        if self.dataset_name != "davis" and self.dataset_name != "jhmdb" and self.config.pretrained_weights is not None:
+        if self.dataset_name not in ["davis", "jhmdb"] and self.config.pretrained_weights is not None:
             print("============================================>")
             print("Load pretrained weights from {} ...".format(self.config.pretrained_weights))
             checkpoint = torch.load(self.config.pretrained_weights, map_location="cpu")
             checkpoint_dict = pre_trained_model_to_finetune(checkpoint, self.config)
             model_without_ddp.load_state_dict(checkpoint_dict, strict=False)
             print("============================================>")
+
 
     def train(self):
         print("Training started...")
@@ -268,10 +308,13 @@ class Trainer:
                         valid_indices.append(i + b * frames)
                         new_targets.append(targets[i][b])
             valid_indices = torch.tensor(valid_indices).to(self.device)
-            targets = [tuple(new_targets)]
+            # targets = [tuple(new_targets)]
             # valid_indices = torch.tensor([i for i, t in enumerate(targets) if None not in t]).to(self.device)
             # targets = [targets[i] for i in valid_indices.tolist()]
+            # Unwrap targets if needed
+            # targets = [t[0] if isinstance(t, tuple) else t for t in targets]
 
+            targets = new_targets
             outputs = self.model(samples, valid_indices, text_queries, targets)
             outputs.pop('aux_outputs', None)
 
